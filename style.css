@@ -1,0 +1,271 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Inter, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    padding: 20px;
+}
+
+.sidebar {
+    width: 280px;
+    background: #5b21b6;
+    min-height: 100vh;
+    padding: 30px;
+    margin-right: 24px;
+    border-radius: 20px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+}
+
+.sidebar h1 {
+    color: white;
+    font-size: 24px;
+    margin-bottom: 40px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    text-align: center;
+}
+
+.sidebar-menu {
+    list-style: none;
+    padding: 0;
+}
+
+.sidebar-menu li {
+    margin-bottom: 16px;
+}
+
+.sidebar-menu button {
+    width: 100%;
+    padding: 14px 20px;
+    border: none;
+    background: rgba(255,255,255,0.1);
+    color: white;
+    border-radius: 12px;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 15px;
+    font-weight: 500;
+}
+
+.sidebar-menu button:hover {
+    background: rgba(255,255,255,0.2);
+    transform: translateX(5px);
+}
+
+.sidebar-menu button.active {
+    background: white;
+    color: #5b21b6;
+}
+
+.main-content {
+    background: white;
+    border-radius: 20px;
+    padding: 30px;
+    flex: 1;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+}
+
+.form-section {
+    display: none;
+}
+
+.form-section.active {
+    display: block;
+}
+
+.form-section h2 {
+    color: #1e293b;
+    margin-bottom: 20px;
+    font-size: 24px;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+input, select, textarea, button {
+    width: 100%;
+    padding: 12px 15px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 15px;
+    transition: all 0.3s;
+}
+
+textarea {
+    resize: vertical;
+    min-height: 100px;
+}
+
+input:focus, select:focus, textarea:focus {
+    border-color: #5b21b6;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(91, 33, 182, 0.1);
+}
+
+button {
+    background: #5b21b6;
+    color: white;
+    border: none;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 12px 20px;
+}
+
+button:hover {
+    background: #4c1d95;
+}
+
+.message {
+    padding: 15px 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    background: #f0fdf4;
+    border-left: 4px solid #22c55e;
+    color: #166534;
+}
+
+table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 20px 0;
+}
+
+th, td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+th {
+    background: #f8fafc;
+    color: #1e293b;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+}
+
+tr:hover {
+    background: #f1f5f9;
+}
+
+.btn-action {
+    padding: 6px 12px;
+    font-size: 13px;
+    margin-right: 5px;
+    width: auto;
+    display: inline-block;
+}
+
+.btn-edit {
+    background: #3b82f6;
+}
+
+.btn-edit:hover {
+    background: #2563eb;
+}
+
+.btn-delete {
+    background: #ef4444;
+}
+
+.btn-delete:hover {
+    background: #dc2626;
+}
+
+.search-box {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    padding: 20px;
+    background: #f8fafc;
+    border-radius: 12px;
+}
+
+.tab-btn {
+    background: #e2e8f0;
+    color: #1e293b;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    margin-right: 10px;
+    cursor: pointer;
+    font-weight: 500;
+    width: auto;
+}
+
+.tab-btn:hover {
+    background: #cbd5e1;
+}
+
+.tab-btn.active {
+    background: #5b21b6;
+    color: white;
+}
+
+.book-tab {
+    display: none;
+}
+
+.book-tab.active {
+    display: block;
+}
+
+.book-tab {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    margin-top: 20px;
+}
+/* --- Đồng bộ style tab giống Quản Lý Sách --- */
+.tab-btn-reader {
+  background: #e2e8f0;
+  color: #1e293b;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  margin-right: 10px;
+  cursor: pointer;
+  font-weight: 500;
+  width: auto;
+  transition: background 0.2s;
+}
+
+.tab-btn-reader:hover {
+  background: #cbd5e1;
+}
+
+.tab-btn-reader.active {
+  background: #5b21b6;
+  color: white;
+}
+.reader-tab {
+  display: none;
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  margin-top: 20px;
+}
+
+.reader-tab.active {
+  display: block;
+}
+#tab-edit {
+  display: none;
+}
+#tab-reader-edit {
+  display: none;
+}
