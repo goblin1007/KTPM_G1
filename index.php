@@ -97,7 +97,31 @@ $phone = isset($_POST['reader_phone']) ? trim($_POST['reader_phone']) : '';
         }
     }
 }
+// ========== Xử lý cập nhật độc giả ==========
+if (isset($_POST['update_reader'])) {
+    $active_form = 'list-readers';
+    $id = (int)$_POST['reader_id_update'];
+    $name = trim($_POST['reader_name_update']);
+    $birth_year = (int)$_POST['birth_year_update'];
+    $phone = trim($_POST['reader_phone_update']);
 
+    if ($id < 1) $message = "❌ ID độc giả không hợp lệ!";
+    elseif (empty($name)) $message = "❌ Tên độc giả không được để trống!";
+    elseif (!only_letters_spaces($name)) $message = "❌ Tên độc giả chỉ chứa chữ!";
+    elseif ($birth_year < 1960 || $birth_year > 2007) $message = "❌ Năm sinh phải từ 1960-2007!";
+    elseif (!valid_phone($phone)) $message = "❌ Số điện thoại phải đúng 10 chữ số và bắt đầu bằng 0!";
+    else {
+        try {
+            $stmt = $conn->prepare("CALL thucapnhatdocgia(?, ?, ?, ?)");
+            $stmt->bind_param("isis", $id, $name, $birth_year, $phone);
+            $stmt->execute();
+            $message = "✅ Cập nhật độc giả thành công!";
+            $stmt->close();
+        } catch (mysqli_sql_exception $e) {
+            $message = "❌ Lỗi: " . $e->getMessage();
+        }
+    }
+}
 // ========== Xử lý mượn sách ==========
 if (isset($_POST['borrow_book'])) {
     $active_form = 'borrow-book';
@@ -113,7 +137,6 @@ if (isset($_POST['borrow_book'])) {
     elseif (empty($borrow_date)) $message = "❌ Ngày mượn không được để trống!";
     else {
         try {
-            // ✅ Gọi đúng 5 tham số
             $stmt = $conn->prepare("CALL thucmuonsach(?, ?, ?, ?, ?)");
             $stmt->bind_param("iiiss", $reader_id, $book_id, $quantity, $borrow_date, $borrow_note);
             $stmt->execute();
@@ -576,11 +599,13 @@ $borrows = $stmt->get_result();
       <th>Sách</th>
       <th>SL Mượn</th>
       <th>SL Trả</th>
+      <th>Còn Lại</th>
       <th>Ngày Mượn</th>
       <th>Hạn Trả</th>
       <th>Ngày Trả</th>
       <th>Trạng Thái</th>
-     
+      <th>Phí Phạt</th>
+      <th>Ghi Chú</th>
     </tr>
     <?php while($borrow = $borrows->fetch_assoc()): ?>
       <tr>
@@ -589,11 +614,13 @@ $borrows = $stmt->get_result();
         <td><?= htmlspecialchars($borrow['tensach']) ?></td>
         <td><?= $borrow['soluongmuon'] ?></td>
         <td><?= isset($borrow['total_returned']) ? $borrow['total_returned'] : 0 ?></td>
+        <td><?= isset($borrow['conlai']) ? $borrow['conlai'] : ($borrow['soluongmuon'] - (isset($borrow['total_returned']) ? $borrow['total_returned'] : 0)) ?></td>
         <td><?= date('d/m/Y', strtotime($borrow['ngaymuon'])) ?></td>
         <td><?= date('d/m/Y', strtotime($borrow['hantra'])) ?></td>
         <td><?= $borrow['ngaytrathucte'] ? date('d/m/Y', strtotime($borrow['ngaytrathucte'])) : '-' ?></td>
         <td><?= htmlspecialchars($borrow['trangthai']) ?></td>
-        
+        <td><?= number_format($borrow['phiphat']) ?> đ</td>
+        <td><?= htmlspecialchars($borrow['ghichu']) ?></td>
       </tr>
     <?php endwhile; ?>
   </table>
@@ -741,6 +768,7 @@ if (!empty($params)) {
 }
 $stmt->execute();
 $returns = $stmt->get_result();
+
   ?>
  <table>
   <tr>
@@ -808,3 +836,4 @@ document.addEventListener('DOMContentLoaded', function() {
   </script>
 </body>
 </html>
+

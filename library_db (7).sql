@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Máy chủ: 127.0.0.1
--- Thời gian đã tạo: Th10 20, 2025 lúc 05:25 PM
+-- Thời gian đã tạo: Th10 21, 2025 lúc 05:36 PM
 -- Phiên bản máy phục vụ: 10.4.32-MariaDB
 -- Phiên bản PHP: 8.1.25
 
@@ -191,26 +191,41 @@ CREATE DEFINER=`root`@`localhost` PROCEDURE `thulaysach` (IN `p_id` INT)   BEGIN
 END$$
 
 CREATE DEFINER=`root`@`localhost` PROCEDURE `thuxoadocgia` (IN `p_id` INT)   BEGIN
+  -- Kiểm tra xem độc giả có phiếu mượn chưa trả hết không
   IF EXISTS (
-    SELECT 1 FROM muonsach
-    WHERE madocgia = p_id 
-      AND (soluongmuon - soluongtra) > 0
+    SELECT 1
+    FROM muonsach m
+    LEFT JOIN (
+      SELECT mamuon, SUM(soluongtra) AS total_returned
+      FROM trasach
+      GROUP BY mamuon
+    ) t ON t.mamuon = m.id
+    WHERE m.madocgia = p_id 
+      AND (m.soluongmuon - IFNULL(t.total_returned, 0)) > 0
   ) THEN
     SIGNAL SQLSTATE '45000' 
     SET MESSAGE_TEXT = 'Không thể xóa: độc giả còn sách chưa trả';
   END IF;
+  
   DELETE FROM docgia WHERE id = p_id;
 END$$
 
 CREATE DEFINER=`root`@`localhost` PROCEDURE `thuxoasach` (IN `p_id` INT)   BEGIN
   IF EXISTS (
-    SELECT 1 FROM muonsach
-    WHERE masach = p_id 
-      AND (soluongmuon - soluongtra) > 0
+    SELECT 1
+    FROM muonsach m
+    LEFT JOIN (
+      SELECT mamuon, SUM(soluongtra) AS total_returned
+      FROM trasach
+      GROUP BY mamuon
+    ) t ON t.mamuon = m.id
+    WHERE m.masach = p_id 
+      AND (m.soluongmuon - IFNULL(t.total_returned, 0)) > 0
   ) THEN
     SIGNAL SQLSTATE '45000' 
     SET MESSAGE_TEXT = 'Không thể xóa: sách đang được mượn';
   END IF;
+  
   DELETE FROM sach WHERE id = p_id;
 END$$
 
@@ -245,19 +260,24 @@ INSERT INTO `docgia` (`id`, `ten`, `namsinh`, `sodienthoai`, `tao_luc`, `cap_nha
 (7, 'Vũ Thị Mai', 1997, '0944556677', '2025-10-19 15:02:27', '2025-10-19 15:02:27'),
 (8, 'Ngô Văn Phúc', 1992, '0922334455', '2025-10-19 15:02:27', '2025-10-19 15:02:27'),
 (9, 'Bùi Thanh Tâm', 2001, '0998877665', '2025-10-19 15:02:27', '2025-10-19 15:02:27'),
-(10, 'Đặng Thị Hồng', 1989, '0909090909', '2025-10-19 15:02:27', '2025-10-19 15:02:27'),
-(13, 'gdgd hhjduweu hùqe', 2004, '0898756462', '2025-10-20 13:05:12', '2025-10-20 13:05:12');
+(10, 'Đặng Thị Hồng', 1989, '0909090909', '2025-10-19 15:02:27', '2025-10-21 15:32:05');
 
 --
 -- Bẫy `docgia`
 --
 DELIMITER $$
 CREATE TRIGGER `tr_docgia_before_delete` BEFORE DELETE ON `docgia` FOR EACH ROW BEGIN
+  -- Kiểm tra xem độc giả có phiếu mượn chưa trả hết không
   IF EXISTS (
     SELECT 1
-    FROM muonsach
-    WHERE madocgia = OLD.id 
-      AND (soluongmuon - soluongtra) > 0
+    FROM muonsach m
+    LEFT JOIN (
+      SELECT mamuon, SUM(soluongtra) AS total_returned
+      FROM trasach
+      GROUP BY mamuon
+    ) t ON t.mamuon = m.id
+    WHERE m.madocgia = OLD.id 
+      AND (m.soluongmuon - IFNULL(t.total_returned, 0)) > 0
   ) THEN
     SIGNAL SQLSTATE '45000' 
     SET MESSAGE_TEXT = 'Không thể xóa độc giả: còn phiếu mượn chưa trả';
@@ -333,7 +353,10 @@ INSERT INTO `muonsach` (`id`, `madocgia`, `masach`, `ngaymuon`, `hantra`, `ngayt
 (7, 5, 7, '2025-10-20', '2025-11-03', NULL, 2, 'Đang mượn', 0, NULL, '2025-10-19 17:56:00', '2025-10-19 17:56:00'),
 (8, 1, 2, '2025-10-20', '2025-11-03', NULL, 3, 'Đang mượn', 0, NULL, '2025-10-20 09:06:19', '2025-10-20 09:06:19'),
 (9, 4, 2, '2025-10-20', '2025-11-03', '2025-10-20', 3, 'Trả đúng hạn', 0, 'hihihaha', '2025-10-20 13:22:19', '2025-10-20 15:20:22'),
-(10, 3, 2, '2025-10-20', '2025-11-03', '2025-10-20', 3, 'Trả đúng hạn', 0, 'hahah | Trả: rách bìa nè', '2025-10-20 14:00:17', '2025-10-20 15:20:22');
+(10, 3, 2, '2025-10-20', '2025-11-03', '2025-10-20', 3, 'Trả đúng hạn', 0, 'hahah | Trả: rách bìa nè', '2025-10-20 14:00:17', '2025-10-20 15:20:22'),
+(11, 6, 2, '2025-10-20', '2025-11-03', '2025-10-20', 3, 'Trả đúng hạn', 0, 'gfsha', '2025-10-20 15:27:23', '2025-10-20 16:07:11'),
+(12, 3, 2, '2025-10-20', '2025-11-03', '2025-10-20', 4, 'Trả đúng hạn', 0, 'thật không', '2025-10-20 16:07:38', '2025-10-20 16:08:09'),
+(13, 3, 1, '2025-10-21', '2025-11-04', '2025-10-21', 3, 'Trả đúng hạn', 0, 'thử', '2025-10-21 15:32:33', '2025-10-21 15:32:56');
 
 -- --------------------------------------------------------
 
@@ -357,8 +380,8 @@ CREATE TABLE `sach` (
 --
 
 INSERT INTO `sach` (`id`, `ten`, `tacgia`, `namxuatban`, `giabia`, `soluong`, `tao_luc`, `cap_nhat_luc`) VALUES
-(1, 'Lập trình C cơ bản', 'Nguyễn Văn An', 2019, 85000, 100, '2025-10-19 15:02:27', '2025-10-20 14:05:52'),
-(2, 'Nhập môn Java', 'Trần Thị Hoa', 2021, 120000, 94, '2025-10-19 15:02:27', '2025-10-20 14:00:43'),
+(1, 'Lập trình C cơ bản', 'Nguyễn Văn An', 2019, 85000, 100, '2025-10-19 15:02:27', '2025-10-21 15:32:56'),
+(2, 'Nhập môn Java', 'Trần Thị Hoa', 2021, 120000, 94, '2025-10-19 15:02:27', '2025-10-20 16:08:09'),
 (3, 'Python cho người mới bắt đầu', 'Lê Minh Quân', 2020, 150000, 100, '2025-10-19 15:02:27', '2025-10-19 15:02:27'),
 (4, 'Cấu trúc dữ liệu và giải thuật', 'Phạm Ngọc Thạch', 2018, 135000, 100, '2025-10-19 15:02:27', '2025-10-19 15:02:27'),
 (5, 'English Grammar in Use', 'Raymond Murphy', 2018, 200000, 100, '2025-10-19 15:02:27', '2025-10-19 15:02:27'),
@@ -366,8 +389,7 @@ INSERT INTO `sach` (`id`, `ten`, `tacgia`, `namxuatban`, `giabia`, `soluong`, `t
 (7, 'Tâm lý học đại cương', 'Phạm Thu Trang', 2016, 110000, 98, '2025-10-19 15:02:27', '2025-10-19 17:56:00'),
 (8, 'Hành vi tổ chức', 'Đỗ Hải Yến', 2022, 125000, 100, '2025-10-19 15:02:27', '2025-10-19 15:02:27'),
 (9, 'Marketing căn bản', 'Philip Kotler', 2015, 180000, 100, '2025-10-19 15:02:27', '2025-10-19 15:02:27'),
-(10, 'Quản trị học', 'Nguyễn Văn Bình', 2022, 160000, 100, '2025-10-19 15:02:27', '2025-10-19 15:02:27'),
-(12, 'nguyen thin ksry', 'hủ tyu trd', 2005, 200000, 2, '2025-10-20 12:54:37', '2025-10-20 12:54:37');
+(10, 'Quản trị học', 'Nguyễn Văn Bình', 2022, 160000, 100, '2025-10-19 15:02:27', '2025-10-19 15:02:27');
 
 --
 -- Bẫy `sach`
@@ -376,9 +398,14 @@ DELIMITER $$
 CREATE TRIGGER `tr_sach_before_delete` BEFORE DELETE ON `sach` FOR EACH ROW BEGIN
   IF EXISTS (
     SELECT 1
-    FROM muonsach
-    WHERE masach = OLD.id 
-      AND (soluongmuon - soluongtra) > 0
+    FROM muonsach m
+    LEFT JOIN (
+      SELECT mamuon, SUM(soluongtra) AS total_returned
+      FROM trasach
+      GROUP BY mamuon
+    ) t ON t.mamuon = m.id
+    WHERE m.masach = OLD.id 
+      AND (m.soluongmuon - IFNULL(t.total_returned, 0)) > 0
   ) THEN
     SIGNAL SQLSTATE '45000' 
     SET MESSAGE_TEXT = 'Không thể xóa sách: sách đang được mượn';
@@ -475,7 +502,10 @@ INSERT INTO `trasach` (`id`, `madocgia`, `masach`, `soluongtra`, `ngaytrathucte`
 (5, 1, 2, 2, '2025-10-25', 'Trả đúng hạn', 0, NULL, '2025-10-20 09:06:19', 4),
 (6, 1, 2, 1, '2025-10-20', 'Trả đúng hạn', 0, 'Trả: Trả 1 quyển test', '2025-10-20 13:59:13', 5),
 (7, 4, 2, 3, '2025-10-20', 'Trả đúng hạn', 0, 'hihihaha', '2025-10-20 13:59:35', 9),
-(8, 3, 2, 3, '2025-10-20', 'Trả đúng hạn', 0, 'hahah | Trả: rách bìa nè', '2025-10-20 14:00:43', 10);
+(8, 3, 2, 3, '2025-10-20', 'Trả đúng hạn', 0, 'hahah | Trả: rách bìa nè', '2025-10-20 14:00:43', 10),
+(9, 6, 2, 3, '2025-10-20', 'Trả đúng hạn', 0, 'gfsha', '2025-10-20 16:07:11', 11),
+(10, 3, 2, 4, '2025-10-20', 'Trả đúng hạn', 0, 'thật không', '2025-10-20 16:08:09', 12),
+(11, 3, 1, 3, '2025-10-21', 'Trả đúng hạn', 0, 'thử', '2025-10-21 15:32:56', 13);
 
 --
 -- Bẫy `trasach`
@@ -582,13 +612,13 @@ ALTER TABLE `trasach`
 -- AUTO_INCREMENT cho bảng `muonsach`
 --
 ALTER TABLE `muonsach`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
 
 --
 -- AUTO_INCREMENT cho bảng `trasach`
 --
 ALTER TABLE `trasach`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
 
 --
 -- Các ràng buộc cho các bảng đã đổ
