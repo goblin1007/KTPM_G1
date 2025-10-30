@@ -52,27 +52,13 @@ if (isset($_POST['add_book'])) {
     $price = (int)$_POST['price'];
     $quantity = (int)$_POST['quantity'];
 
-    if ($id < 1) {
-      $message = "❌ ID sách phải là số nguyên dương!"; 
-    }
-    elseif (empty($name)) {
-      $message = "❌ Tên sách không được để trống!"; 
-    }
-    elseif (!valid_book_name($name)) {
-      $message = "❌ Tên sách chỉ chứa chữ, số và khoảng trắng!"; 
-    }
-    elseif (!only_letters_spaces($author)) {
-      $message = "❌ Tên tác giả không hợp lệ"; 
-    }
-    elseif ($year < 1900 || $year > 2025) {
-      $message = "❌ Năm xuất bản không hợp lệ"; 
-    }
-    elseif ($price < 10000 || $price > 1000000) {
-      $message = "❌ Giá bìa không hợp lệ"; 
-    }
-    elseif ($quantity < 1) {
-      $message = "❌ Số lượng không hợp lệ"; 
-    }
+    if ($id < 1) $message = "❌ ID sách không hợp lệ";
+    elseif (empty($name)) $message = "❌ Tên sách không hợp lệ";
+    elseif (!valid_book_name($name)) $message = "❌ Tên sách không hợp lệ";
+    elseif (!only_letters_spaces($author)) $message = "❌ Tên tác giả không hợp lệ";
+    elseif ($year < 1900 || $year > 2025) $message = "❌ Năm xuất bản không hợp lệ";
+    elseif ($price < 10000 || $price > 1000000) $message = "❌ Giá bìa không hợp lệ";
+    elseif ($quantity < 1) $message = "❌ Số lượng không hợp lệ";
     else {
         try {
             $stmt = $conn->prepare("CALL thucthemsach(?, ?, ?, ?, ?, ?)");
@@ -81,9 +67,15 @@ if (isset($_POST['add_book'])) {
             $message = "✅ Thêm mới thành công!";
             $stmt->close();
         } catch (mysqli_sql_exception $e) {
-            $message = "❌ Lỗi: " . $e->getMessage();
+                      $error_msg = $e->getMessage();
+                     // Xử lý các lỗi khác từ stored procedure
+            if (strpos($error_msg, 'ID sách') !== false && strpos($error_msg, 'tồn tại') !== false) {
+                $message = "❌ ID sách đã tồn tại";
+            } else {
+                $message = "❌ Số lượng không hợp lệ";
         }
     }
+}
 }
 
 // ========== Xử lý thêm độc giả ==========
@@ -94,11 +86,11 @@ if (isset($_POST['add_reader'])) {
     $birth_year = (int)$_POST['birth_year'];
     $phone = isset($_POST['reader_phone']) ? trim($_POST['reader_phone']) : '';
 
-    if ($id < 1) $message = "❌ ID độc giả phải là số nguyên dương!";
-    elseif (empty($name)) $message = "❌ Tên độc giả không được để trống!";
-    elseif (!only_letters_spaces($name)) $message = "❌ Tên độc giả chỉ chứa chữ!";
-    elseif ($birth_year < 1960 || $birth_year > 2007) $message = "❌ Năm sinh phải từ 1960-2007!";
-    elseif (!valid_phone($phone)) $message = "❌ Số điện thoại phải đúng 10 chữ số và bắt đầu bằng 0!";
+    if ($id < 1) $message = "❌ ID độc giả không hợp lệ!";
+    elseif (empty($name)) $message = "❌ Tên độc giả không hợp lệ!";
+    elseif (!only_letters_spaces($name)) $message = "❌ Tên độc giả không hợp lệ!";
+    elseif ($birth_year < 1960 || $birth_year > 2007) $message = "❌ Năm sinh không hợp lệ";
+    elseif (!valid_phone($phone)) $message = "❌ Số điện thoại không hợp lệ";
     else {
         try {
             $stmt = $conn->prepare("CALL thucthemdocgia(?, ?, ?, ?)");
@@ -121,10 +113,10 @@ if (isset($_POST['update_reader'])) {
     $phone = trim($_POST['reader_phone_update']);
 
     if ($id < 1) $message = "❌ ID độc giả không hợp lệ!";
-    elseif (empty($name)) $message = "❌ Tên độc giả không được để trống!";
-    elseif (!only_letters_spaces($name)) $message = "❌ Tên độc giả chỉ chứa chữ!";
-    elseif ($birth_year < 1960 || $birth_year > 2007) $message = "❌ Năm sinh phải từ 1960-2007!";
-    elseif (!valid_phone($phone)) $message = "❌ Số điện thoại phải đúng 10 chữ số và bắt đầu bằng 0!";
+    elseif (empty($name)) $message = "❌ Tên độc giả không hợp lệ!";
+    elseif (!only_letters_spaces($name)) $message = "❌ Tên độc giả không hợp lệ!";
+    elseif ($birth_year < 1960 || $birth_year > 2007) $message = "❌ Năm sinh không hợp lệ!";
+    elseif (!valid_phone($phone)) $message = "❌ Số điện thoại không hợp lệ!";
     else {
         try {
             $stmt = $conn->prepare("CALL thucapnhatdocgia(?, ?, ?, ?)");
@@ -177,7 +169,7 @@ if (isset($_POST['borrow_book'])) {
             $book_result = $check_book->get_result();
             
             if ($book_result->num_rows === 0) {
-                $message = "❌ ID sách không tồn tại trong thư viện!";
+                $message = "❌ ID sách không tồn tại!";
                 $check_book->close();
             } else {
                 $book_info = $book_result->fetch_assoc();
@@ -228,10 +220,10 @@ if (isset($_POST['update_book'])) {
         $message = "❌ ID sách không hợp lệ!";
     }
     elseif (empty($name)) {
-        $message = "❌ Tên sách không được để trống!";
+        $message = "❌ Tên sách không hợp lệ!";
     }
     elseif (!valid_book_name($name)) {
-        $message = "❌ Tên sách chỉ chứa chữ, số và khoảng trắng!";
+        $message = "❌ Tên sách không hợp lệ!";
     }
     elseif (!only_letters_spaces($author)) {
         $message = "❌ Tên tác giả không hợp lệ!";
@@ -276,7 +268,7 @@ if (isset($_POST['find_reader'])) {
         $stmt->close();
         
         if (!$reader_info) {
-            $message = "❌ Không tìm thấy độc giả!";
+            $message = "❌ ID độc giả không tồn tại!";
         } else {
             $stmt = $conn->prepare("CALL thudsmuonchocdg(?)");
             $stmt->bind_param("i", $reader_id);
@@ -293,6 +285,16 @@ if (isset($_POST['return_book_submit'])) {
     $borrow_id = (int)$_POST['borrow_id'];
     $quantity = (int)$_POST['quantity_return'];
     $return_date = trim($_POST['return_date']);
+    $return_note = trim($_POST['return_note'] ?? '');
+
+     // Kiểm tra ngày trả hợp lệ
+    if (empty($return_date) || strtotime($return_date) === false) {
+        $message = "❌ Ngày trả không hợp lệ!";
+    } 
+    elseif (strtotime($return_date) < strtotime('2025-01-01')) {
+        $message = "❌ Ngày trả không hợp lệ!";
+    }
+    else {
 
     // Kiểm tra phiếu mượn và số lượng còn lại
     $stmt = $conn->prepare("SELECT m.soluongmuon, 
@@ -307,36 +309,158 @@ if (isset($_POST['return_book_submit'])) {
     $stmt->execute();
     $result = $stmt->get_result();
     
-    if ($row = $result->fetch_assoc()) {
-        $remaining = $row['soluongmuon'] - $row['soluongtra'];
-        if ($quantity <= 0 || $quantity > $remaining) {
-            $message = "❌ Số lượng trả không hợp lệ!";
-        } else {
-            try {
-                // Set flag for trasach insert
-                $conn->query("SET @ALLOW_TRASACH_INSERT = 1");
-                
-                // Call stored procedure
-                $stmt = $conn->prepare("CALL thuctrasach(?, ?, ?, NULL)");
-                $stmt->bind_param("iis", $borrow_id, $quantity, $return_date);
-                $stmt->execute();
-                
-                // Reset flag
-                $conn->query("SET @ALLOW_TRASACH_INSERT = NULL");
-                
-                $message = "✅ Đã trả " . $quantity . " cuốn " . $row['tensach'];
-                
-            } catch (mysqli_sql_exception $e) {
-                $message = "❌ Lỗi: " . $e->getMessage();
-                $conn->query("SET @ALLOW_TRASACH_INSERT = NULL");
-            }
-        }
-    } else {
-        $message = "❌ Không tìm thấy phiếu mượn!";
-    }
-    $stmt->close();
-}
+   // ========== Xử lý trả sách ==========
+if (isset($_POST['return_book_submit'])) {
+    $active_form = 'return-book';
+    $borrow_id = (int)$_POST['borrow_id'];
+    $quantity = (int)$_POST['quantity_return'];
+    $return_date = trim($_POST['return_date']);
+    $return_note = trim($_POST['return_note'] ?? '');
 
+    // Kiểm tra ngày trả hợp lệ
+    if (empty($return_date) || strtotime($return_date) === false) {
+        $message = "❌ Ngày trả không hợp lệ!";
+    } 
+    elseif (strtotime($return_date) < strtotime('2025-01-01')) {
+        $message = "❌ Ngày trả không hợp lệ!";
+    }
+    else {
+        // Lấy thông tin phiếu mượn
+        $stmt = $conn->prepare("
+            SELECT m.soluongmuon, m.hantra, m.ngaymuon, m.masach, s.giabia, s.ten as tensach,
+                   (SELECT COALESCE(SUM(soluongtra), 0) FROM trasach WHERE mamuon = m.id) as soluongtra
+            FROM muonsach m 
+            JOIN sach s ON m.masach = s.id 
+            WHERE m.id = ?
+        ");
+        $stmt->bind_param("i", $borrow_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result->fetch_assoc();
+        $stmt->close();
+        
+        if ($row) {
+            $remaining = $row['soluongmuon'] - $row['soluongtra'];
+            $tensach = $row['tensach'];
+            $giabia = $row['giabia'];
+            $hantra = $row['hantra'];
+            $ngaymuon = $row['ngaymuon'];
+            
+            // Kiểm tra ngày trả không được trước ngày mượn
+            if (strtotime($return_date) < strtotime($ngaymuon)) {
+                $message = "❌ Ngày trả không hợp lệ!";
+            }
+            // Kiểm tra số lượng trả hợp lệ
+            elseif ($quantity < 0 || $quantity > $remaining) {
+                $message = "❌ Số lượng trả không hợp lệ!";
+            } 
+            else {
+                try {
+                    $hantra_dt = new DateTime($hantra);
+                    $ngaytra_dt = new DateTime($return_date);
+                    $phi_tre = 0;
+                    $phi_mat = 0;
+                    $tong_phi = 0;
+                    $detail_msg = "";
+                    $days_late = 0;
+                    
+                    // Tính số ngày trễ (nếu có)
+                    if ($ngaytra_dt > $hantra_dt) {
+                        $days_late = $ngaytra_dt->diff($hantra_dt)->days;
+                    }
+                    
+                    // TRƯỜNG HỢP 1: MẤT SÁCH (Số lượng trả = 0)
+                    if ($quantity == 0) {
+                        // 1. Phí mất sách
+                        $phi_mat = $giabia * $remaining;
+                        
+                        // 2. Phí trả trễ (nếu có) - tính cho số lượng bị mất
+                        if ($days_late > 0) {
+                            $phi_tre = $days_late * $remaining * 2000;
+                            $detail_msg = "Trả trễ hạn: Phí phạt = $days_late ngày × 2,000đ × $remaining cuốn = " . number_format($phi_tre) . "đ | ";
+                        }
+                        
+                        $detail_msg .= "Mất sách: Phí đền bù = " . number_format($giabia) . "đ × $remaining cuốn = " . number_format($phi_mat) . "đ";
+                        $tong_phi = $phi_tre + $phi_mat;
+                        
+                        // Gọi SP
+                        $conn->query("SET @ALLOW_TRASACH_INSERT = 1");
+                        $stmt_return = $conn->prepare("CALL thuctrasach(?, ?, ?, ?)");
+                        $stmt_return->bind_param("iiss", $borrow_id, $quantity, $return_date, $return_note);
+                        $stmt_return->execute();
+                        $stmt_return->close();
+                        $conn->query("SET @ALLOW_TRASACH_INSERT = NULL");
+                        
+                        $message = "⚠️ Ghi nhận mất $remaining cuốn '$tensach' - $detail_msg | Tổng phí phạt: " . number_format($tong_phi) . "đ";
+                    }
+                    // TRƯỜNG HỢP 2: TRẢ BÌNH THƯỜNG (Số lượng >= 1)
+                    else {
+                        // Chỉ tính phí trả trễ (nếu có)
+                        if ($days_late > 0) {
+                            $phi_tre = $days_late * $quantity * 2000;
+                            $detail_msg = "Trả trễ hạn: Phí phạt = $days_late ngày × 2,000đ × $quantity cuốn = " . number_format($phi_tre) . "đ";
+                        } else {
+                            $detail_msg = "Trả đúng hạn: 0đ";
+                        }
+                        
+                        $tong_phi = $phi_tre;
+                        
+                        // Gọi SP
+                        $conn->query("SET @ALLOW_TRASACH_INSERT = 1");
+                        $stmt_return = $conn->prepare("CALL thuctrasach(?, ?, ?, ?)");
+                        $stmt_return->bind_param("iiss", $borrow_id, $quantity, $return_date, $return_note);
+                        $stmt_return->execute();
+                        $stmt_return->close();
+                        $conn->query("SET @ALLOW_TRASACH_INSERT = NULL");
+                        
+                        $message = "✅ Đã trả $quantity cuốn '$tensach' - $detail_msg";
+                        
+                        // Ghi chú nếu trả thiếu
+                        if ($quantity < $remaining) {
+                            $con_lai = $remaining - $quantity;
+                            $message .= " (Còn lại $con_lai cuốn chưa trả)";
+                        }
+                    }
+                    
+                    // Reload thông tin độc giả
+                    if (isset($_POST['reader_id_find'])) {
+                        $reader_id = (int)$_POST['reader_id_find'];
+                        $stmt_reader = $conn->prepare("SELECT id, ten, sodienthoai FROM docgia WHERE id = ?");
+                        $stmt_reader->bind_param("i", $reader_id);
+                        $stmt_reader->execute();
+                        $reader_info = $stmt_reader->get_result()->fetch_assoc();
+                        $stmt_reader->close();
+                        
+                        if ($reader_info) {
+                            $stmt_borrow = $conn->prepare("CALL thudsmuonchocdg(?)");
+                            $stmt_borrow->bind_param("i", $reader_id);
+                            $stmt_borrow->execute();
+                            $borrow_list = $stmt_borrow->get_result()->fetch_all(MYSQLI_ASSOC);
+                            $stmt_borrow->close();
+                        }
+                    }
+                    
+                } catch (mysqli_sql_exception $e) {
+                    $error_msg = $e->getMessage();
+                    
+                    if (strpos($error_msg, 'Số lượng trả') !== false) {
+                        $message = "❌ Số lượng trả không hợp lệ!";
+                    } elseif (strpos($error_msg, 'Không tìm thấy') !== false) {
+                        $message = "❌ Không tìm thấy phiếu mượn!";
+                    } else {
+                        $message = "❌ Lỗi: " . $error_msg;
+                    }
+                    
+                    $conn->query("SET @ALLOW_TRASACH_INSERT = NULL");
+                }
+            }
+        } else {
+            $message = "❌ Không tìm thấy phiếu mượn!";
+        }
+    }
+}
+    }
+  }
 // ========== Xử lý tìm kiếm ==========
 $search_keyword = $_POST['search_keyword'] ?? '';
 $search_category = $_POST['search_category'] ?? '';
@@ -385,8 +509,7 @@ if (isset($_POST['search_borrows'])) $active_form = 'borrow-book';
       <!-- Tab Danh Sách -->
       <div id="book-list" class="book-tab active">
         <form method="post" class="search-box">
-          <input name="search_keyword" placeholder="Tìm theo tên sách..." value="<?= htmlspecialchars($search_keyword) ?>">
-          <input name="search_category" placeholder="Tìm theo tác giả..." value="<?= htmlspecialchars($search_category) ?>">
+          <input type="number" name="search_id_books" placeholder="Tìm theo ID sách..." value="<?= htmlspecialchars($search_id_books ?? '') ?>" min="1">
           <button name="search_books">🔍 Tìm kiếm</button>
         </form>
 
@@ -395,15 +518,11 @@ if (isset($_POST['search_borrows'])) $active_form = 'borrow-book';
         $params = [];
         $types = "";
         
-        if (!empty($search_keyword)) {
-            $sql .= " AND ten LIKE ?";
-            $params[] = "%$search_keyword%";
-            $types .= "s";
-        }
-        if (!empty($search_category)) {
-            $sql .= " AND tacgia LIKE ?";
-            $params[] = "%$search_category%";
-            $types .= "s";
+        if (!empty($_POST['search_id_books'])) {
+         $search_id_books = (int)$_POST['search_id_books'];
+         $sql .= " AND id = ?";
+         $params[] = $search_id_books;
+         $types .= "i";
         }
         
         $sql .= " ORDER BY id";
@@ -413,6 +532,9 @@ if (isset($_POST['search_borrows'])) $active_form = 'borrow-book';
         }
         $stmt->execute();
         $books = $stmt->get_result();
+        if (isset($_POST['search_books']) && $books->num_rows === 0) {
+    echo "<p style='color:red; text-align:center;'>ID sách không tồn tại.</p>";
+}
         ?>
 
         <table>
@@ -446,14 +568,12 @@ if (isset($_POST['search_borrows'])) $active_form = 'borrow-book';
       <div id="book-add" class="book-tab">
         <form id="addBookForm" method="post" novalidate>
           <div class="grid">
-            <input type="number" id="book_id" name="book_id" placeholder="ID sách" min="1" required>
+            <input type="number" id="book_id" name="book_id" placeholder="ID sách" required>
             <input id="book_name" name="book_name" placeholder="Tên sách" required>
             <input id="author" name="author" placeholder="Tác giả" required>
-            <input type="number" id="publish_year" name="publish_year" min="1900" max="2025" placeholder="Năm xuất bản" required>
-            <input type="number" id="price" name="price" min="10000" max="1000000" placeholder="Giá bìa (VNĐ)" required>
-            <input type="number" id="quantity" name="quantity" min="1" placeholder="Số lượng" required>
-          </div>
-          <textarea id="description" name="description" placeholder="Ghi chú (Tên: chỉ chữ, số và khoảng trắng | Tác giả: chỉ chữ)"></textarea>
+            <input type="number" id="publish_year" name="publish_year" placeholder="Năm xuất bản" required>
+            <input type="number" id="price" name="price" placeholder="Giá bìa ((10000-1000000VNĐ VNĐ)" required>
+            <input type="number" id="quantity" name="quantity" placeholder="Số lượng" required>          </div>
           <button type="submit" name="add_book">Thêm Sách</button>
         </form>
       </div>
@@ -487,8 +607,6 @@ if (isset($_POST['search_borrows'])) $active_form = 'borrow-book';
             <input type="number" 
                    id="publish_year_update" 
                    name="publish_year_update" 
-                   min="1900" 
-                   max="2025" 
                    placeholder="Năm xuất bản"
                    value="<?= isset($update_book_data) ? htmlspecialchars($update_book_data['year']) : '' ?>"
                    required>
@@ -496,17 +614,14 @@ if (isset($_POST['search_borrows'])) $active_form = 'borrow-book';
             <input type="number" 
                    id="price_update" 
                    name="price_update" 
-                   min="10000" 
-                   max="1000000" 
-                   placeholder="Giá bìa (VNĐ)"
+                   placeholder="Giá bìa (10000-1000000VNĐ)"
                    value="<?= isset($update_book_data) ? htmlspecialchars($update_book_data['price']) : '' ?>"
                    required>
                    
             <input type="number" 
                    id="quantity_update" 
                    name="quantity_update" 
-                   min="1" 
-                   placeholder="Số lượng (>= 1)"
+                   placeholder="Số lượng"
                    value="<?= isset($update_book_data) ? htmlspecialchars($update_book_data['quantity']) : '' ?>"
                    required>
           </div>
@@ -530,7 +645,6 @@ if (isset($_POST['search_borrows'])) $active_form = 'borrow-book';
       <div id="reader-tab-list" class="reader-tab active">
         <form method="post" class="search-box">
           <input type="number" name="search_id_reader" placeholder="Tìm theo ID độc giả..." value="<?= htmlspecialchars($search_id_reader ?? '') ?>" min="1">
-          <input name="search_phone_reader" placeholder="Tìm theo số điện thoại..." value="<?= htmlspecialchars($search_phone_reader ?? '') ?>">
           <button name="search_readers">🔍 Tìm kiếm</button>
         </form>
 
@@ -545,12 +659,6 @@ if (isset($_POST['search_borrows'])) $active_form = 'borrow-book';
             $params[] = $search_id_reader;
             $types .= "i";
         }
-        if (!empty($_POST['search_phone_reader'])) {
-            $search_phone_reader = trim($_POST['search_phone_reader']);
-            $sql .= " AND sodienthoai LIKE ?";
-            $params[] = "%$search_phone_reader%";
-            $types .= "s";
-        }
 
         $sql .= " ORDER BY id";
         $stmt = $conn->prepare($sql);
@@ -559,6 +667,11 @@ if (isset($_POST['search_borrows'])) $active_form = 'borrow-book';
         }
         $stmt->execute();
         $readers = $stmt->get_result();
+        if (isset($_POST['search_readers']) && $readers->num_rows === 0) {
+           echo "<p style='color:red; text-align:center;'>ID độc giả không tồn tại.</p>";
+        }
+
+
         ?>
 
         <table>
@@ -598,10 +711,9 @@ if (isset($_POST['search_borrows'])) $active_form = 'borrow-book';
           <div class="grid">
             <input type="number" name="reader_id" placeholder="ID độc giả" min="1" required>
             <input name="reader_name" placeholder="Họ tên độc giả" required>
-            <input type="number" name="birth_year" placeholder="Năm sinh (1960–2007)" min="1960" max="2007" required>
-            <input name="reader_phone" placeholder="Số điện thoại (10 chữ số, bắt đầu bằng 0)" pattern="0[0-9]{9}" required>
+            <input type="number" name="birth_year" placeholder="Năm sinh (1960–2007)" required>
+            <input name="reader_phone" placeholder="Số điện thoại (10 chữ số, bắt đầu bằng 0)" required>
           </div>
-          <textarea name="description_reader" placeholder="Ghi chú (Tên chỉ chữ | Năm sinh từ 1960–2007 | SĐT hợp lệ)"></textarea>
           <button name="add_reader">Thêm Độc Giả</button>
         </form>
       </div>
@@ -612,8 +724,8 @@ if (isset($_POST['search_borrows'])) $active_form = 'borrow-book';
           <div class="grid">
             <input type="number" id="reader_id_update" name="reader_id_update" placeholder="ID độc giả (không thể thay đổi)" min="1" required readonly style="background-color: #f0f0f0; cursor: not-allowed;">
             <input id="reader_name_update" name="reader_name_update" placeholder="Tên độc giả mới" required>
-            <input type="number" id="birth_year_update" name="birth_year_update" min="1960" max="2007" placeholder="Năm sinh mới" required>
-            <input id="phone_update" name="reader_phone_update" placeholder="Số điện thoại mới (10 chữ số, bắt đầu bằng 0)" pattern="0[0-9]{9}" required>
+            <input type="number" id="birth_year_update" name="birth_year_update"  placeholder="Năm sinh mới" required>
+            <input id="phone_update" name="reader_phone_update" placeholder="Số điện thoại mới (10 chữ số, bắt đầu bằng 0)" required>
           </div>
           <button name="update_reader">Cập Nhật Độc Giả</button>
         </form>
@@ -629,10 +741,10 @@ if (isset($_POST['search_borrows'])) $active_form = 'borrow-book';
     <h3 style="margin-bottom: 15px;">Tạo phiếu mượn mới</h3>
     <form method="post">
       <div class="grid">
-        <input type="number" name="reader_id" min="1" placeholder="Nhập ID độc giả" required>
-        <input type="number" name="book_id" min="1" placeholder="Nhập ID sách" required>
-        <input type="number" name="borrow_quantity" min="1" max="5" placeholder="Số lượng (1–5)" required>
-        <input type="date" name="borrow_date" value="<?= date('Y-m-d') ?>" min="2025-01-01" required>
+        <input type="number" name="reader_id"  placeholder="Nhập ID độc giả" required>
+        <input type="number" name="book_id"  placeholder="Nhập ID sách" required>
+        <input type="number" name="borrow_quantity"  placeholder="Số lượng (1–5)" required>
+        <input type="date" name="borrow_date" value="<?= date('Y-m-d') ?>"  required>
       </div>
           <textarea name="borrow_note" placeholder="Ghi chú (không bắt buộc)" style="width: 100%; margin-top: 10px; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-family: inherit;"></textarea>
       <button name="borrow_book">Tạo Phiếu Mượn</button>
@@ -784,15 +896,14 @@ $borrows = $stmt->get_result();
                 <input type="hidden" name="find_reader" value="1">
                 <input type="hidden" name="borrow_id" value="<?= $borrow['mamuon'] ?>">
                 <input type="number" name="quantity_return" 
-                       min="1" 
-                       max="<?= $borrow['conlai'] ?>" 
-                       value="<?= $borrow['conlai'] ?>" 
-                       required
-                       style="width: 60px; padding: 8px;">
+                      min="0" 
+                      value="<?= $borrow['conlai'] ?>" 
+                      required
+                      style="width: 60px; padding: 8px;"
+                      title="Nhập 0 nếu mất sách">
                 <input type="date" 
                        name="return_date" 
                        value="<?= date('Y-m-d') ?>" 
-                       min="2025-01-01"
                        required 
                        style="width: 120px; padding: 8px;">
                 <input type="text" 
@@ -810,7 +921,7 @@ $borrows = $stmt->get_result();
         </table>
       <?php else: ?>
         <p style="text-align: center; margin-top: 20px; color: #16a34a;">
-          ✅ Độc giả không có sách nào đang mượn
+           Độc giả không có sách nào đang mượn
         </p>
       <?php endif; ?>
     <?php endif; ?>
@@ -859,6 +970,9 @@ if (!empty($params)) {
 }
 $stmt->execute();
 $returns = $stmt->get_result();
+if (isset($_POST['search_returns']) && $returns->num_rows === 0) {
+    echo "<p style='color:red; text-align:center;'>ID phiếu trả không tồn tại.</p>";
+}
 
   ?>
  <table>
@@ -1006,49 +1120,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 i.style.borderColor = '';
                 i.dataset.error = '';
             });
-
-            // Kiểm tra từng trường
-            if (id === '' || isNaN(Number(id)) || Number(id) < 1) {
-                errors.push('ID sách phải là số nguyên dương (>=1).');
-                idEl.style.borderColor = '#dc2626';
-                idEl.dataset.error = 'true';
-            }
-            if (!nameRegex.test(name)) {
-                errors.push('Tên sách chỉ được chứa chữ, số và khoảng trắng.');
-                nameEl.style.borderColor = '#dc2626';
-                nameEl.dataset.error = 'true';
-            }
-            if (!authorRegex.test(author)) {
-                errors.push('Tên tác giả chỉ được chứa chữ và khoảng trắng.');
-                authorEl.style.borderColor = '#dc2626';
-                authorEl.dataset.error = 'true';
-            }
-            if (isNaN(year) || year < 1900 || year > 2025) {
-                errors.push('Năm xuất bản phải nằm trong khoảng 1900–2025.');
-                yearEl.style.borderColor = '#dc2626';
-                yearEl.dataset.error = 'true';
-            }
-            if (isNaN(price) || price < 10000 || price > 1000000) {
-                errors.push('Giá bìa phải từ 10.000đ đến 1.000.000đ.');
-                priceEl.style.borderColor = '#dc2626';
-                priceEl.dataset.error = 'true';
-            }
-            if (isNaN(quantity) || quantity < 1) {
-                errors.push('Số lượng phải >= 1.');
-                qtyEl.style.borderColor = '#dc2626';
-                qtyEl.dataset.error = 'true';
-            }
-            if (errors.length > 0) {
-                e.preventDefault();
-                const firstInvalid = [idEl, nameEl, authorEl, yearEl, priceEl, qtyEl].find(el => el.dataset.error === 'true');
-                if (firstInvalid) firstInvalid.focus();
-                showBookTab('add');
-                alert('❌ Lỗi khi thêm sách:\n\n' + errors.join('\n'));
-                return false;
-            }
         });
     }
-});
+}); 
 </script>
 </body>
 </html>

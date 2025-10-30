@@ -3,9 +3,9 @@
 -- https://www.phpmyadmin.net/
 --
 -- Máy chủ: 127.0.0.1
--- Thời gian đã tạo: Th10 21, 2025 lúc 05:36 PM
--- Phiên bản máy phục vụ: 10.4.32-MariaDB
--- Phiên bản PHP: 8.1.25
+-- Thời gian đã tạo: Th10 30, 2025 lúc 07:42 AM
+-- Phiên bản máy phục vụ: 10.4.28-MariaDB
+-- Phiên bản PHP: 8.2.4
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -78,90 +78,119 @@ CREATE DEFINER=`root`@`localhost` PROCEDURE `thuctrasach` (IN `p_mamuon` INT, IN
   DECLARE v_masach INT;
   DECLARE v_soluongmuon INT;
   DECLARE v_total_returned INT DEFAULT 0;
-  DECLARE v_last_return DATE;
-  DECLARE v_giabia INT DEFAULT 0;
+  DECLARE v_hantra DATE;
+  DECLARE v_ngaymuon DATE;
+  DECLARE v_giabia BIGINT DEFAULT 0;
   DECLARE v_ngaytre INT DEFAULT 0;
-  DECLARE v_phiphat INT DEFAULT 0;
+  DECLARE v_phi_tre BIGINT DEFAULT 0;
+  DECLARE v_phi_mat BIGINT DEFAULT 0;
+  DECLARE v_phiphat BIGINT DEFAULT 0;
   DECLARE v_conlai INT;
   DECLARE v_ghichu_cu VARCHAR(1000);
   DECLARE v_ghichu_new VARCHAR(1000);
+  DECLARE v_trangthai VARCHAR(50);
 
   -- Lấy thông tin phiếu mượn
-  SELECT madocgia, masach, soluongmuon, hantra, ghichu
-    INTO v_madocgia, v_masach, v_soluongmuon, v_last_return, v_ghichu_cu
-  FROM muonsach
-  WHERE id = p_mamuon
-  LIMIT 1;
+  SELECT madocgia, masach, soluongmuon, hantra, ngaymuon, ghichu
+    INTO v_madocgia, v_masach, v_soluongmuon, v_hantra, v_ngaymuon, v_ghichu_cu
+  FROM muonsach WHERE id = p_mamuon LIMIT 1;
 
   IF v_madocgia IS NULL THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Không tìm thấy phiếu mượn';
   END IF;
 
-  -- Tổng số đã trả trước đó cho phiếu này
+  -- Tổng số đã trả trước đó
   SELECT IFNULL(SUM(soluongtra), 0) INTO v_total_returned
-  FROM trasach
-  WHERE mamuon = p_mamuon;
+  FROM trasach WHERE mamuon = p_mamuon;
 
-  -- Kiểm tra trả quá số
-  SET v_conlai = v_soluongmuon - v_total_returned - p_soluongtra;
-  IF v_conlai < 0 THEN
-    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Số lượng trả vượt quá số lượng mượn';
+  -- Số lượng còn lại chưa trả
+  SET v_conlai = v_soluongmuon - v_total_returned;
+
+  -- Kiểm tra số lượng trả hợp lệ
+  IF p_soluongtra < 0 OR p_soluongtra > v_conlai THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Số lượng trả không hợp lệ';
   END IF;
 
-  -- Lấy giá bìa (nếu cần để tính phạt/mất sách)
+  -- Lấy giá bìa
   SELECT giabia INTO v_giabia FROM sach WHERE id = v_masach LIMIT 1;
 
-  -- Tính phạt: nếu trả trễ thì 2000đ/ngày/quyển (theo quy định hiện tại)
-  -- Tìm hạn trả trong muonsach (đã lấy vào v_last_return above? careful: v_last_return currently holds hantra)
-  SELECT hantra INTO v_last_return FROM muonsach WHERE id = p_mamuon LIMIT 1;
-
-  IF p_ngaytra > v_last_return THEN
-    SET v_ngaytre = DATEDIFF(p_ngaytra, v_last_return);
-    SET v_phiphat = v_ngaytre * p_soluongtra * 2000;
+  -- Tính số ngày trễ (nếu có)
+  IF p_ngaytra > v_hantra THEN
+    SET v_ngaytre = DATEDIFF(p_ngaytra, v_hantra);
   ELSE
     SET v_ngaytre = 0;
-    SET v_phiphat = 0;
   END IF;
 
-  -- Chuẩn bị ghi ghichu mới (nối ghichu cũ + ghichu trả)
-  IF p_ghichu IS NOT NULL AND TRIM(p_ghichu) <> '' THEN
-    IF v_ghichu_cu IS NOT NULL AND TRIM(v_ghichu_cu) <> '' THEN
-      SET v_ghichu_new = CONCAT(v_ghichu_cu, ' | Trả: ', p_ghichu);
-    ELSE
-      SET v_ghichu_new = CONCAT('Trả: ', p_ghichu);
+  -- ===== XỬ LÝ MẤT SÁCH (p_soluongtra = 0) =====
+  IF p_soluongtra = 0 THEN
+    -- 1. Phí mất sách = giá bìa × số lượng còn lại
+    SET v_phi_mat = v_conlai * v_giabia;
+    
+    -- 2. Phí trả trễ (nếu có) = số ngày × 2000 × số lượng bị mất
+    IF v_ngaytre > 0 THEN
+      SET v_phi_tre = v_ngaytre * v_conlai * 2000;
     END IF;
+    
+    -- 3. Tổng phí phạt
+    SET v_phiphat = v_phi_tre + v_phi_mat;
+    SET v_trangthai = 'Mất sách';
+    
+    -- Ghi chú
+    IF p_ghichu IS NOT NULL AND TRIM(p_ghichu) <> '' THEN
+      SET v_ghichu_new = CONCAT(IFNULL(v_ghichu_cu, ''), ' | Mất ', v_conlai, ' cuốn: ', p_ghichu);
+    ELSE
+      SET v_ghichu_new = CONCAT(IFNULL(v_ghichu_cu, ''), ' | Mất ', v_conlai, ' cuốn');
+    END IF;
+    
+    -- Insert vào trasach
+    INSERT INTO trasach (madocgia, masach, soluongtra, ngaytrathucte, trangthai, phiphat, ghichu, mamuon)
+    VALUES (v_madocgia, v_masach, 0, p_ngaytra, v_trangthai, v_phiphat, v_ghichu_new, p_mamuon);
+    
+    -- KHÔNG cộng lại số lượng sách vào kho (vì mất rồi)
+    
+  -- ===== XỬ LÝ TRẢ BÌNH THƯỜNG (p_soluongtra >= 1) =====
   ELSE
-    SET v_ghichu_new = v_ghichu_cu;
+    -- Chỉ tính phí trả trễ (nếu có)
+    IF v_ngaytre > 0 THEN
+      SET v_phiphat = v_ngaytre * p_soluongtra * 2000;
+      SET v_trangthai = 'Trả trễ hạn';
+    ELSE
+      SET v_phiphat = 0;
+      SET v_trangthai = 'Trả đúng hạn';
+    END IF;
+
+    -- Ghi chú
+    IF p_ghichu IS NOT NULL AND TRIM(p_ghichu) <> '' THEN
+      SET v_ghichu_new = CONCAT(IFNULL(v_ghichu_cu, ''), ' | Trả: ', p_ghichu);
+    ELSE
+      SET v_ghichu_new = v_ghichu_cu;
+    END IF;
+
+    -- Insert vào trasach
+    INSERT INTO trasach (madocgia, masach, soluongtra, ngaytrathucte, trangthai, phiphat, ghichu, mamuon)
+    VALUES (v_madocgia, v_masach, p_soluongtra, p_ngaytra, v_trangthai, v_phiphat, v_ghichu_new, p_mamuon);
+
+    -- Cập nhật số lượng sách trong kho
+    UPDATE sach SET soluong = soluong + p_soluongtra WHERE id = v_masach;
   END IF;
 
-  -- Chèn bản ghi vào bảng trasach
-  INSERT INTO trasach (madocgia, masach, soluongtra, ngaytrathucte, trangthai, phiphat, ghichu, mamuon)
-  VALUES (v_madocgia, v_masach, p_soluongtra, p_ngaytra,
-          CASE WHEN p_ngaytra > v_last_return THEN 'Trả trễ hạn' ELSE 'Trả đúng hạn' END,
-          v_phiphat, v_ghichu_new, p_mamuon);
-
-  -- Cập nhật số lượng sách trong kho
-  UPDATE sach
-  SET soluong = soluong + p_soluongtra
-  WHERE id = v_masach;
-
-  -- Cập nhật lại tổng đã trả, ngày trả thực tế, phạt và trạng thái trong muonsach
-  -- (tính lại từ trasach để đảm bảo chính xác)
+  -- Cập nhật lại muonsach
   UPDATE muonsach m
   LEFT JOIN (
-    SELECT mamuon, SUM(soluongtra) AS total_returned, MAX(ngaytrathucte) AS last_return, SUM(phiphat) AS total_phiphat
-    FROM trasach
-    WHERE mamuon = p_mamuon
-    GROUP BY mamuon
+    SELECT mamuon, 
+           SUM(soluongtra) AS total_returned, 
+           MAX(ngaytrathucte) AS last_return, 
+           SUM(phiphat) AS total_phiphat
+    FROM trasach WHERE mamuon = p_mamuon GROUP BY mamuon
   ) t ON t.mamuon = m.id
   SET
     m.ngaytrathucte = COALESCE(t.last_return, m.ngaytrathucte),
-    m.phiphat = COALESCE(m.phiphat,0) + COALESCE(t.total_phiphat,0) - COALESCE(m.phiphat,0), -- đảm bảo cộng dồn đúng
-    m.ghichu = COALESCE(t.total_returned,0) + 0, -- placeholder nếu muốn lưu tổng (hoặc set v_ghichu_new)
+    m.phiphat = COALESCE(t.total_phiphat, 0),
     m.ghichu = v_ghichu_new,
     m.trangthai = CASE
-      WHEN COALESCE(t.total_returned,0) >= m.soluongmuon AND t.last_return IS NOT NULL
-        THEN CASE WHEN t.last_return > m.hantra THEN 'Trả trễ hạn' ELSE 'Trả đúng hạn' END
+      WHEN (SELECT COUNT(*) FROM trasach WHERE mamuon = p_mamuon AND trangthai = 'Mất sách') > 0 THEN 'Mất sách'
+      WHEN COALESCE(t.total_returned, 0) >= m.soluongmuon THEN 
+        CASE WHEN t.last_return > m.hantra THEN 'Trả trễ hạn' ELSE 'Trả đúng hạn' END
       ELSE 'Đang mượn'
     END
   WHERE m.id = p_mamuon;
@@ -176,12 +205,17 @@ CREATE DEFINER=`root`@`localhost` PROCEDURE `thudsmuonchocdg` (IN `p_madg` INT) 
     m.masach,
     s.ten AS tensach,
     m.soluongmuon,
-    -- tổng đã trả từ trasach
-    (m.soluongmuon - IFNULL((SELECT SUM(t.soluongtra) FROM trasach t WHERE t.mamuon = m.id),0)) AS conlai
+    (m.soluongmuon - IFNULL((SELECT SUM(t.soluongtra) FROM trasach t WHERE t.mamuon = m.id), 0)) AS conlai
   FROM muonsach m
   JOIN sach s ON m.masach = s.id
   WHERE m.madocgia = p_madg
-    AND (m.soluongmuon - IFNULL((SELECT SUM(t2.soluongtra) FROM trasach t2 WHERE t2.mamuon = m.id),0)) > 0;
+    AND m.trangthai = 'Đang mượn'
+    AND NOT EXISTS (
+      SELECT 1 FROM trasach 
+      WHERE mamuon = m.id 
+        AND trangthai = 'Mất sách'
+    )
+    AND (m.soluongmuon - IFNULL((SELECT SUM(t2.soluongtra) FROM trasach t2 WHERE t2.mamuon = m.id), 0)) > 0;
 END$$
 
 CREATE DEFINER=`root`@`localhost` PROCEDURE `thulaysach` (IN `p_id` INT)   BEGIN
@@ -251,16 +285,16 @@ CREATE TABLE `docgia` (
 --
 
 INSERT INTO `docgia` (`id`, `ten`, `namsinh`, `sodienthoai`, `tao_luc`, `cap_nhat_luc`) VALUES
-(1, 'Nguyễn Thị Lan', 1998, '0912345678', '2025-10-19 15:02:27', '2025-10-19 15:02:27'),
-(2, 'Trần Văn Hùng', 1995, '0987654321', '2025-10-19 15:02:27', '2025-10-19 15:02:27'),
-(3, 'Lê Thu Hằng', 2000, '0901122334', '2025-10-19 15:02:27', '2025-10-19 15:02:27'),
-(4, 'Phạm Minh Tuấn', 1988, '0977554433', '2025-10-19 15:02:27', '2025-10-19 15:02:27'),
-(5, 'Hoàng Anh Thư', 1999, '0966778899', '2025-10-19 15:02:27', '2025-10-19 15:02:27'),
-(6, 'Đỗ Quang Khải', 1990, '0933221100', '2025-10-19 15:02:27', '2025-10-19 15:02:27'),
-(7, 'Vũ Thị Mai', 1997, '0944556677', '2025-10-19 15:02:27', '2025-10-19 15:02:27'),
-(8, 'Ngô Văn Phúc', 1992, '0922334455', '2025-10-19 15:02:27', '2025-10-19 15:02:27'),
-(9, 'Bùi Thanh Tâm', 2001, '0998877665', '2025-10-19 15:02:27', '2025-10-19 15:02:27'),
-(10, 'Đặng Thị Hồng', 1989, '0909090909', '2025-10-19 15:02:27', '2025-10-21 15:32:05');
+(1, 'Nguyễn Thị Lan', 1998, '0912345678', '2025-10-30 06:15:35', '2025-10-30 06:15:35'),
+(2, 'Trần Văn Hùng', 1995, '0987654321', '2025-10-30 06:15:35', '2025-10-30 06:15:35'),
+(3, 'Lê Thu Hằng', 2000, '0901122334', '2025-10-30 06:15:35', '2025-10-30 06:15:35'),
+(4, 'Phạm Minh Tuấn', 1988, '0977554433', '2025-10-30 06:15:35', '2025-10-30 06:15:35'),
+(5, 'Hoàng Anh Thư', 1999, '0966778899', '2025-10-30 06:15:35', '2025-10-30 06:15:35'),
+(6, 'Đỗ Quang Khải', 1990, '0933221100', '2025-10-30 06:15:35', '2025-10-30 06:15:35'),
+(7, 'Vũ Thị Mai', 1997, '0944556677', '2025-10-30 06:15:35', '2025-10-30 06:15:35'),
+(8, 'Ngô Văn Phúc', 1992, '0922334455', '2025-10-30 06:15:35', '2025-10-30 06:15:35'),
+(9, 'Bùi Thanh Tâm', 2001, '0998877665', '2025-10-30 06:15:35', '2025-10-30 06:15:35'),
+(10, 'Đặng Thị Hồng', 1989, '0909090909', '2025-10-30 06:15:35', '2025-10-30 06:15:35');
 
 --
 -- Bẫy `docgia`
@@ -344,19 +378,14 @@ CREATE TABLE `muonsach` (
 --
 
 INSERT INTO `muonsach` (`id`, `madocgia`, `masach`, `ngaymuon`, `hantra`, `ngaytrathucte`, `soluongmuon`, `trangthai`, `phiphat`, `ghichu`, `tao_luc`, `cap_nhat_luc`) VALUES
-(1, 1, 1, '2025-10-01', '2025-10-15', '2025-10-20', 2, 'Trả trễ hạn', 95000, NULL, '2025-10-19 15:02:27', '2025-10-19 17:31:48'),
-(2, 1, 1, '2025-10-01', '2025-10-15', '2025-10-20', 2, 'Trả trễ hạn', 20000, NULL, '2025-10-19 15:06:21', '2025-10-19 17:32:05'),
-(3, 1, 2, '2025-10-20', '2025-11-03', '2025-10-20', 2, 'Trả đúng hạn', 0, NULL, '2025-10-19 17:38:43', '2025-10-19 17:42:28'),
-(4, 1, 2, '2025-10-20', '2025-11-03', '2025-10-25', 2, 'Trả đúng hạn', 0, NULL, '2025-10-19 17:55:21', '2025-10-20 09:06:19'),
-(5, 1, 2, '2025-10-20', '2025-11-03', '2025-10-20', 2, 'Đang mượn', 0, 'Trả: Trả 1 quyển test', '2025-10-19 17:55:34', '2025-10-20 15:20:22'),
-(6, 5, 2, '2025-10-20', '2025-11-03', NULL, 2, 'Đang mượn', 0, NULL, '2025-10-19 17:55:44', '2025-10-19 17:55:44'),
-(7, 5, 7, '2025-10-20', '2025-11-03', NULL, 2, 'Đang mượn', 0, NULL, '2025-10-19 17:56:00', '2025-10-19 17:56:00'),
-(8, 1, 2, '2025-10-20', '2025-11-03', NULL, 3, 'Đang mượn', 0, NULL, '2025-10-20 09:06:19', '2025-10-20 09:06:19'),
-(9, 4, 2, '2025-10-20', '2025-11-03', '2025-10-20', 3, 'Trả đúng hạn', 0, 'hihihaha', '2025-10-20 13:22:19', '2025-10-20 15:20:22'),
-(10, 3, 2, '2025-10-20', '2025-11-03', '2025-10-20', 3, 'Trả đúng hạn', 0, 'hahah | Trả: rách bìa nè', '2025-10-20 14:00:17', '2025-10-20 15:20:22'),
-(11, 6, 2, '2025-10-20', '2025-11-03', '2025-10-20', 3, 'Trả đúng hạn', 0, 'gfsha', '2025-10-20 15:27:23', '2025-10-20 16:07:11'),
-(12, 3, 2, '2025-10-20', '2025-11-03', '2025-10-20', 4, 'Trả đúng hạn', 0, 'thật không', '2025-10-20 16:07:38', '2025-10-20 16:08:09'),
-(13, 3, 1, '2025-10-21', '2025-11-04', '2025-10-21', 3, 'Trả đúng hạn', 0, 'thử', '2025-10-21 15:32:33', '2025-10-21 15:32:56');
+(1, 1, 1, '2025-10-01', '2025-10-15', '2025-10-14', 1, 'Trả đúng hạn', 0, NULL, '2025-10-30 06:16:25', '2025-10-30 06:16:45'),
+(2, 2, 5, '2025-09-28', '2025-10-12', '2025-10-13', 2, 'Trả trễ hạn', 4000, ' | Trả: Trễ 1 ngày', '2025-10-30 06:16:25', '2025-10-30 06:16:45'),
+(3, 3, 3, '2025-10-05', '2025-10-19', NULL, 1, 'Đang mượn', 0, NULL, '2025-10-30 06:16:25', '2025-10-30 06:16:25'),
+(4, 4, 9, '2025-09-25', '2025-10-09', '2025-10-09', 1, 'Mất sách', 180000, ' | Mất 1 cuốn: Mất sách', '2025-10-30 06:16:25', '2025-10-30 06:16:45'),
+(5, 5, 8, '2025-10-03', '2025-10-17', NULL, 1, 'Đang mượn', 0, NULL, '2025-10-30 06:16:25', '2025-10-30 06:16:25'),
+(6, 1, 3, '2025-10-30', '2025-11-13', '2025-12-07', 1, 'Mất sách', 396000, ' | Mất 1 cuốn: Đã trả phí phạt | Mất 1 cuốn: Đã trả phí phạt', '2025-10-30 06:18:21', '2025-10-30 06:26:43'),
+(7, 1, 2, '2025-10-30', '2025-11-13', '2025-10-30', 3, 'Trả đúng hạn', 0, '', '2025-10-30 06:27:42', '2025-10-30 06:27:50'),
+(8, 3, 2, '2025-10-30', '2025-11-13', NULL, 4, 'Đang mượn', 0, '', '2025-10-30 06:34:27', '2025-10-30 06:34:27');
 
 -- --------------------------------------------------------
 
@@ -380,16 +409,16 @@ CREATE TABLE `sach` (
 --
 
 INSERT INTO `sach` (`id`, `ten`, `tacgia`, `namxuatban`, `giabia`, `soluong`, `tao_luc`, `cap_nhat_luc`) VALUES
-(1, 'Lập trình C cơ bản', 'Nguyễn Văn An', 2019, 85000, 100, '2025-10-19 15:02:27', '2025-10-21 15:32:56'),
-(2, 'Nhập môn Java', 'Trần Thị Hoa', 2021, 120000, 94, '2025-10-19 15:02:27', '2025-10-20 16:08:09'),
-(3, 'Python cho người mới bắt đầu', 'Lê Minh Quân', 2020, 150000, 100, '2025-10-19 15:02:27', '2025-10-19 15:02:27'),
-(4, 'Cấu trúc dữ liệu và giải thuật', 'Phạm Ngọc Thạch', 2018, 135000, 100, '2025-10-19 15:02:27', '2025-10-19 15:02:27'),
-(5, 'English Grammar in Use', 'Raymond Murphy', 2018, 200000, 100, '2025-10-19 15:02:27', '2025-10-19 15:02:27'),
-(6, 'Từ điển Anh – Việt', 'NXB Giáo dục', 2017, 95000, 100, '2025-10-19 15:02:27', '2025-10-19 15:02:27'),
-(7, 'Tâm lý học đại cương', 'Phạm Thu Trang', 2016, 110000, 98, '2025-10-19 15:02:27', '2025-10-19 17:56:00'),
-(8, 'Hành vi tổ chức', 'Đỗ Hải Yến', 2022, 125000, 100, '2025-10-19 15:02:27', '2025-10-19 15:02:27'),
-(9, 'Marketing căn bản', 'Philip Kotler', 2015, 180000, 100, '2025-10-19 15:02:27', '2025-10-19 15:02:27'),
-(10, 'Quản trị học', 'Nguyễn Văn Bình', 2022, 160000, 100, '2025-10-19 15:02:27', '2025-10-19 15:02:27');
+(1, 'Lập trình C cơ bản', 'Nguyễn Văn An', 2019, 85000, 100, '2025-10-30 06:15:21', '2025-10-30 06:16:45'),
+(2, 'Nhập môn Java', 'Trần Thị Hoa', 2021, 120000, 96, '2025-10-30 06:15:21', '2025-10-30 06:34:27'),
+(3, 'Python cho người mới bắt đầu', 'Lê Minh Quân', 2020, 150000, 98, '2025-10-30 06:15:21', '2025-10-30 06:18:21'),
+(4, 'Cấu trúc dữ liệu và giải thuật', 'Phạm Ngọc Thạch', 2018, 135000, 100, '2025-10-30 06:15:21', '2025-10-30 06:15:21'),
+(5, 'English Grammar in Use', 'Raymond Murphy', 2018, 200000, 100, '2025-10-30 06:15:21', '2025-10-30 06:16:45'),
+(6, 'Từ điển Anh Việt', 'NXB Giáo dục', 2017, 95000, 100, '2025-10-30 06:15:21', '2025-10-30 06:15:21'),
+(7, 'Tâm lý học đại cương', 'Phạm Thu Trang', 2016, 110000, 100, '2025-10-30 06:15:21', '2025-10-30 06:15:21'),
+(8, 'Hành vi tổ chức', 'Đỗ Hải Yến', 2022, 125000, 99, '2025-10-30 06:15:21', '2025-10-30 06:16:25'),
+(9, 'Marketing căn bản', 'Philip Kotler', 2015, 180000, 99, '2025-10-30 06:15:21', '2025-10-30 06:16:25'),
+(10, 'Quản trị học', 'Nguyễn Văn Bình', 2022, 160000, 100, '2025-10-30 06:15:21', '2025-10-30 06:15:21');
 
 --
 -- Bẫy `sach`
@@ -495,17 +524,12 @@ CREATE TABLE `trasach` (
 --
 
 INSERT INTO `trasach` (`id`, `madocgia`, `masach`, `soluongtra`, `ngaytrathucte`, `trangthai`, `phiphat`, `ghichu`, `tao_luc`, `mamuon`) VALUES
-(1, 1, 1, 1, '2025-10-10', 'Mất sách', 85000, NULL, '2025-10-19 15:02:27', 1),
-(2, 1, 1, 1, '2025-10-20', 'Trả trễ hạn', 10000, NULL, '2025-10-19 17:31:48', 1),
-(3, 1, 1, 2, '2025-10-20', 'Trả trễ hạn', 20000, NULL, '2025-10-19 17:32:05', 2),
-(4, 1, 2, 2, '2025-10-20', 'Trả đúng hạn', 0, NULL, '2025-10-19 17:42:28', 3),
-(5, 1, 2, 2, '2025-10-25', 'Trả đúng hạn', 0, NULL, '2025-10-20 09:06:19', 4),
-(6, 1, 2, 1, '2025-10-20', 'Trả đúng hạn', 0, 'Trả: Trả 1 quyển test', '2025-10-20 13:59:13', 5),
-(7, 4, 2, 3, '2025-10-20', 'Trả đúng hạn', 0, 'hihihaha', '2025-10-20 13:59:35', 9),
-(8, 3, 2, 3, '2025-10-20', 'Trả đúng hạn', 0, 'hahah | Trả: rách bìa nè', '2025-10-20 14:00:43', 10),
-(9, 6, 2, 3, '2025-10-20', 'Trả đúng hạn', 0, 'gfsha', '2025-10-20 16:07:11', 11),
-(10, 3, 2, 4, '2025-10-20', 'Trả đúng hạn', 0, 'thật không', '2025-10-20 16:08:09', 12),
-(11, 3, 1, 3, '2025-10-21', 'Trả đúng hạn', 0, 'thử', '2025-10-21 15:32:56', 13);
+(1, 1, 1, 1, '2025-10-14', 'Trả đúng hạn', 0, NULL, '2025-10-30 06:16:45', 1),
+(2, 2, 5, 2, '2025-10-13', 'Trả trễ hạn', 4000, ' | Trả: Trễ 1 ngày', '2025-10-30 06:16:45', 2),
+(3, 4, 9, 0, '2025-10-09', 'Mất sách', 180000, ' | Mất 1 cuốn: Mất sách', '2025-10-30 06:16:45', 4),
+(4, 1, 3, 0, '2025-12-07', 'Mất sách', 198000, ' | Mất 1 cuốn: Đã trả phí phạt', '2025-10-30 06:19:54', 6),
+(5, 1, 3, 0, '2025-12-07', 'Mất sách', 198000, ' | Mất 1 cuốn: Đã trả phí phạt | Mất 1 cuốn: Đã trả phí phạt', '2025-10-30 06:26:43', 6),
+(6, 1, 2, 3, '2025-10-30', 'Trả đúng hạn', 0, '', '2025-10-30 06:27:50', 7);
 
 --
 -- Bẫy `trasach`
@@ -612,13 +636,13 @@ ALTER TABLE `trasach`
 -- AUTO_INCREMENT cho bảng `muonsach`
 --
 ALTER TABLE `muonsach`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT cho bảng `trasach`
 --
 ALTER TABLE `trasach`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- Các ràng buộc cho các bảng đã đổ
