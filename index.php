@@ -83,7 +83,7 @@ if (isset($_POST['add_book'])) {
             if (strpos($error_msg, 'ID sách') !== false && strpos($error_msg, 'tồn tại') !== false) {
                 $message = "❌ ID sách đã tồn tại";
             } else {
-                $message = "❌ Số lượng không hợp lệ";
+                $message = "❌ Đã xảy ra lỗi khi thêm sách, vui lòng thử lại!";
         }
     }
 }
