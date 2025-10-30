@@ -52,12 +52,24 @@ if (isset($_POST['add_book'])) {
     $price = (int)$_POST['price'];
     $quantity = (int)$_POST['quantity'];
 
-    if ($id < 1) $message = "❌ ID sách không hợp lệ";
-    elseif (!valid_book_name($name)) $message = "❌ Tên sách không hợp lệ";
-    elseif (!only_letters_spaces($author)) $message = "❌ Tên tác giả không hợp lệ";
-    elseif ($year < 1900 || $year > 2025) $message = "❌ Năm xuất bản không hợp lệ";
-    elseif ($price < 10000 || $price > 1000000) $message = "❌ Giá bìa không hợp lệ";
-    elseif ($quantity < 1) $message = "❌ Số lượng không hợp lệ";
+    if ($id < 1) {
+        $message = "❌ ID sách không hợp lệ"
+        }
+    elseif (!valid_book_name($name)) {
+        $message = "❌ Tên sách không hợp lệ"
+        }
+    elseif (!only_letters_spaces($author)) {
+        $message = "❌ Tên tác giả không hợp lệ"
+        }
+    elseif ($year < 1900 || $year > 2025) {
+        $message = "❌ Năm xuất bản không hợp lệ"
+        }
+    elseif ($price < 10000 || $price > 1000000) {
+        $message = "❌ Giá bìa không hợp lệ"
+        }
+    elseif ($quantity < 1) {
+        $message = "❌ Số lượng không hợp lệ"
+        }
     else {
         try {
             $stmt = $conn->prepare("CALL thucthemsach(?, ?, ?, ?, ?, ?)");
@@ -85,10 +97,18 @@ if (isset($_POST['add_reader'])) {
     $birth_year = (int)$_POST['birth_year'];
     $phone = isset($_POST['reader_phone']) ? trim($_POST['reader_phone']) : '';
 
-    if ($id < 1) $message = "❌ ID độc giả không hợp lệ!";
-    elseif (!only_letters_spaces($name)) $message = "❌ Tên độc giả không hợp lệ!";
-    elseif ($birth_year < 1960 || $birth_year > 2007) $message = "❌ Năm sinh không hợp lệ";
-    elseif (!valid_phone($phone)) $message = "❌ Số điện thoại không hợp lệ";
+    if ($id < 1) {
+      $message = "❌ ID độc giả không hợp lệ!";
+      }
+    elseif (!only_letters_spaces($name)) {
+      $message = "❌ Tên độc giả không hợp lệ!";
+      }
+    elseif ($birth_year < 1960 || $birth_year > 2007) {
+      $message = "❌ Năm sinh không hợp lệ";
+      }
+    elseif (!valid_phone($phone)) {
+      $message = "❌ Số điện thoại không hợp lệ";
+      }
     else {
         try {
             $stmt = $conn->prepare("CALL thucthemdocgia(?, ?, ?, ?)");
