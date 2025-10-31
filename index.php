@@ -9,6 +9,46 @@ function only_letters_spaces($s){ return preg_match('/^[\p{L} ]+$/u', $s); }
 function valid_phone($s){ return preg_match('/^0[0-9]{9}$/', $s); }
 function valid_book_name($s){ return preg_match('/^[\p{L}0-9 ]+$/u', $s); }
 
+// Kiểm tra ID sách đã tồn tại
+function check_book_exists($conn, $id) {
+    $stmt = $conn->prepare("SELECT COUNT(*) FROM sach WHERE id = ?");
+    $stmt->bind_param("i", $id);
+    $stmt->execute();
+    $stmt->bind_result($count);
+    $stmt->fetch();
+    $stmt->close();
+    return $count > 0;
+}
+
+// Thêm sách mới
+function add_book_to_db($conn, $id, $name, $author, $year, $price, $quantity) {
+    $stmt = $conn->prepare("CALL thucthemsach(?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("issiii", $id, $name, $author, $year, $price, $quantity);
+    $stmt->execute();
+    $stmt->close();
+}
+
+// ======== FUNCTION HỖ TRỢ ========
+
+// Kiểm tra ID độc giả đã tồn tại
+function check_reader_exists($conn, $id) {
+    $stmt = $conn->prepare("SELECT COUNT(*) FROM docgia WHERE id = ?");
+    $stmt->bind_param("i", $id);
+    $stmt->execute();
+    $stmt->bind_result($count);
+    $stmt->fetch();
+    $stmt->close();
+    return $count > 0;
+}
+
+// Thêm độc giả mới
+function add_reader_to_db($conn, $id, $name, $birth_year, $phone) {
+    $stmt = $conn->prepare("CALL thucthemdocgia(?, ?, ?, ?)");
+    $stmt->bind_param("isis", $id, $name, $birth_year, $phone);
+    $stmt->execute();
+    $stmt->close();
+}
+ 
 // Xác định form nào đang active
 $active_form = 'list-books'; // mặc định hiển thị danh sách sách
 
@@ -43,104 +83,74 @@ if (isset($_GET['delete_reader'])) {
 }
 
 // ======== Xử lý thêm sách ========
-if (isset($_POST['add_book'])) {
-    $active_form = 'list-books';
-    $id       = (int)$_POST['book_id'];
-    $name     = trim($_POST['book_name']);
-    $author   = trim($_POST['author']);
-    $year     = (int)$_POST['publish_year'];
-    $price    = (int)$_POST['price'];
-    $quantity = (int)$_POST['quantity'];
-    $count = 0; // Khởi tạo mặc định
-    // Kiểm tra ID đã tồn tại
-    $check_stmt = $conn->prepare("SELECT COUNT(*) FROM sach WHERE id = ?");
-    if ($check_stmt) {
-        $check_stmt->bind_param("i", $id);
-        $check_stmt->execute();
-        $check_stmt->bind_result($count);
-        $check_stmt->fetch();
-        $check_stmt->close();
+if (isset($_POST['add_book'])) {                                  
+    $active_form = 'list-books';                                  
+    $id       = (int)$_POST['book_id'];                          
+    $name     = trim($_POST['book_name']);                        
+    $author   = trim($_POST['author']);                           
+    $year     = (int)$_POST['publish_year'];                      
+    $price    = (int)$_POST['price'];                             
+    $quantity = (int)$_POST['quantity'];                          
+
+
+    if ($id <= 0) {                                               
+        $message = "❌ ID sách không hợp lệ";                      
     }
-    if ($count > 0) {
-        $message = "❌ ID sách đã tồn tại";
+    elseif (!preg_match('/^[\p{L}0-9 ]+$/u', $name)) {            
+        $message = "❌ Tên sách không hợp lệ";                     
     }
-    elseif ($id <= 0) {
-        $message = "❌ ID sách không hợp lệ";
+    elseif (!preg_match('/^[\p{L} ]+$/u', $author)) {             
+        $message = "❌ Tên tác giả không hợp lệ";                  
     }
-    elseif (!valid_book_name($name)) {
-        $message = "❌ Tên sách không hợp lệ";
+    elseif ($year < 1900 || $year > 2025) {                       
+        $message = "❌ Năm xuất bản không hợp lệ";                 
     }
-    elseif (!only_letters_spaces($author)) {
-        $message = "❌ Tên tác giả không hợp lệ";
+    elseif ($price < 10000 || $price > 1000000) {                
+        $message = "❌ Giá bìa không hợp lệ";                      
     }
-    elseif ($year < 1900 || $year > 2025) {
-        $message = "❌ Năm xuất bản không hợp lệ";
+    elseif ($quantity < 1) {                                      
+        $message = "❌ Số lượng không hợp lệ";                     
     }
-    elseif ($price < 10000 || $price > 1000000) {
-        $message = "❌ Giá bìa không hợp lệ";
+    elseif (check_book_exists($conn, $id)) {                      
+        $message = "❌ ID sách đã tồn tại";                        
     }
-    elseif ($quantity < 1) {
-        $message = "❌ Số lượng không hợp lệ";
-    }
-    else {
-        $stmt = $conn->prepare("CALL thuchemsach(?, ?, ?, ?, ?, ?)");
-        if ($stmt) {
-            $stmt->bind_param("issiii", $id, $name, $author, $year, $price, $quantity);
-            if ($stmt->execute()) {
-                $message = "✅ Thêm mới thành công!";
-            }
-            $stmt->close();
-        }
+    else {                                                        
+        add_book_to_db($conn, $id, $name, $author, $year, $price, $quantity);  
+        $message = "✅ Thêm mới thành công";                       
     }
 }
 
 
-// ========== Xử lý thêm độc giả ==========
+
+// ======== Xử lý thêm độc giả ========
 if (isset($_POST['add_reader'])) {
     $active_form = 'list-readers';
-    $id = (int)$_POST['reader_id'];
-    $name = trim($_POST['reader_name']);
+    $id         = (int)$_POST['reader_id'];
+    $name       = trim($_POST['reader_name']);
     $birth_year = (int)$_POST['birth_year'];
-    $phone = isset($_POST['reader_phone']) ? trim($_POST['reader_phone']) : '';
-    
-    $count = 0; // Thêm dòng này
-    // Kiểm tra ID đã tồn tại
-    $check_stmt = $conn->prepare("SELECT COUNT(*) FROM docgia WHERE id = ?");
-    if ($check_stmt) {
-        $check_stmt->bind_param("i", $id);
-        $check_stmt->execute();
-        $check_stmt->bind_result($count);
-        $check_stmt->fetch();
-        $check_stmt->close();
+    $phone      = trim($_POST['reader_phone']);
+
+    if ($id <= 0) {
+        $message = "❌ ID độc giả không hợp lệ";
     }
-    if ($count > 0) {
-        $message = "❌ ID độc giả đã tồn tại";
-    }
-    elseif ($id < 1) {
-        $message = "❌ ID độc giả không hợp lệ!";
-    }
-    elseif (empty($name)) {
-        $message = "❌ Tên độc giả không hợp lệ!";
-    }
-    elseif (!only_letters_spaces($name)) {
-        $message = "❌ Tên độc giả không hợp lệ!";
+    elseif (!preg_match('/^[\p{L} ]+$/u', $name)) {
+        $message = "❌ Tên độc giả không hợp lệ";
     }
     elseif ($birth_year < 1960 || $birth_year > 2007) {
         $message = "❌ Năm sinh không hợp lệ";
     }
-    elseif (!valid_phone($phone)) {
+    elseif (!preg_match('/^0\d{9}$/', $phone)) {
         $message = "❌ Số điện thoại không hợp lệ";
     }
+    elseif (check_reader_exists($conn, $id)) {
+        $message = "❌ ID độc giả đã tồn tại";
+    }
     else {
-        $stmt = $conn->prepare("CALL thucthemdocgia(?, ?, ?, ?)");
-        if ($stmt) {
-            $stmt->bind_param("isis", $id, $name, $birth_year, $phone);
-            $stmt->execute();
-            $stmt->close();
-            $message = "✅ Thêm độc giả thành công!";
-        }
+        add_reader_to_db($conn, $id, $name, $birth_year, $phone);
+        $message = "✅ Thêm mới thành công";
     }
 }
+
 
 // ========== Xử lý cập nhật độc giả ==========
 if (isset($_POST['update_reader'])) {
@@ -744,7 +754,7 @@ if (isset($_POST['search_borrows'])) $active_form = 'borrow-book';
       <div id="reader-tab-add" class="reader-tab">
         <form method="post">
           <div class="grid">
-            <input type="number" name="reader_id" placeholder="ID độc giả" min="1" required>
+            <input type="number" name="reader_id" placeholder="ID độc giả"  required>
             <input name="reader_name" placeholder="Họ tên độc giả" required>
             <input type="number" name="birth_year" placeholder="Năm sinh (1960–2007)" required>
             <input name="reader_phone" placeholder="Số điện thoại (10 chữ số, bắt đầu bằng 0)" required>
