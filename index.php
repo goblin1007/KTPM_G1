@@ -551,63 +551,86 @@ if (isset($_POST['search_borrows'])) $active_form = 'borrow-book';
       </div>
 
       <!-- Tab Danh Sách -->
-      <div id="book-list" class="book-tab active">
-        <form method="post" class="search-box">
-          <input type="number" name="search_id_books" placeholder="Tìm theo ID sách..." value="<?= htmlspecialchars($search_id_books ?? '') ?>" min="1">
-          <button name="search_books">🔍 Tìm kiếm</button>
-        </form>
-        
-      <!-- Xử lý tìm kiếm sách -->
-        <?php
-        $sql = "SELECT * FROM sach WHERE 1=1";
-        $params = [];
-        $types = "";
-        
-        if (!empty($_POST['search_id_books'])) {
-         $search_id_books = (int)$_POST['search_id_books'];
-         $sql .= " AND id = ?";
-         $params[] = $search_id_books;
-         $types .= "i";
-        }
-        
-        $sql .= " ORDER BY id";
-        $stmt = $conn->prepare($sql);
-        if (!empty($params)) {
-            $stmt->bind_param($types, ...$params);
-        }
+<div id="book-list" class="book-tab active">
+  <form method="post" class="search-box">
+    <input type="number" name="search_id_books" placeholder="Tìm theo ID sách..." 
+           value="<?= htmlspecialchars($search_id_books ?? '') ?>" min="1">
+    <button name="search_books">🔍 Tìm kiếm</button>
+  </form>
+
+  <!-- Xử lý tìm kiếm sách -->
+  <?php
+    $books = null;
+    $search_id_books = $_POST['search_id_books'] ?? '';
+
+    if (isset($_POST['search_books'])) {
+        $search_id_books = (int)$search_id_books;
+
+        $stmt = $conn->prepare("SELECT * FROM sach WHERE id = ?");
+        $stmt->bind_param("i", $search_id_books);
         $stmt->execute();
         $books = $stmt->get_result();
-        if (isset($_POST['search_books']) && $books->num_rows === 0) {
-    echo "<p style='color:red; text-align:center;'>ID sách không tồn tại.</p>";
-}
-        ?>
 
-        <table>
-          <tr>
-            <th>ID</th>
-            <th>Tên Sách</th>
-            <th>Tác Giả</th>
-            <th>Năm XB</th>
-            <th>Giá Bìa</th>
-            <th>Số Lượng</th>
-            <th>Thao Tác</th>
-          </tr>
-          <?php while($book = $books->fetch_assoc()): ?>
-            <tr>
-              <td><?= $book['id'] ?></td>
-              <td><?= htmlspecialchars($book['ten']) ?></td>
-              <td><?= htmlspecialchars($book['tacgia']) ?></td>
-              <td><?= $book['namxuatban'] ?></td>
-              <td><?= number_format($book['giabia']) ?> đ</td>
-              <td><?= $book['soluong'] ?></td>
-              <td>
-                <button class="btn-action btn-edit" onclick="editBook(<?= $book['id'] ?>, '<?= addslashes($book['ten']) ?>', '<?= addslashes($book['tacgia']) ?>', <?= $book['namxuatban'] ?>, <?= $book['giabia'] ?>, <?= $book['soluong'] ?>)">Cập Nhật</button>
-                <a href="?delete_book=<?= $book['id'] ?>" onclick="return confirm('Xác nhận xóa sách này?')" class="btn-action btn-delete" style="text-decoration: none;">Xóa</a>
-              </td>
-            </tr>
-          <?php endwhile; ?>
-        </table>
-      </div>
+        if ($books->num_rows === 0) {
+            $message = "❌ ID sách không tồn tại.";
+        } else {
+            $message = "✅ Tìm thấy {$books->num_rows} kết quả.";
+        }
+
+        $stmt->close();
+    } else {
+        $books = $conn->query("SELECT * FROM sach ORDER BY id ASC");
+    }
+  ?>
+
+  <?php if (!empty($message)): ?>
+    <div class="message"><?= htmlspecialchars($message) ?></div>
+  <?php endif; ?>
+
+  <table>
+    <tr>
+      <th>ID</th>
+      <th>Tên Sách</th>
+      <th>Tác Giả</th>
+      <th>Năm XB</th>
+      <th>Giá Bìa</th>
+      <th>Số Lượng</th>
+      <th>Thao Tác</th>
+    </tr>
+
+    <?php if ($books && $books->num_rows > 0): ?>
+      <?php while ($book = $books->fetch_assoc()): ?>
+        <tr>
+          <td><?= $book['id'] ?></td>
+          <td><?= htmlspecialchars($book['ten']) ?></td>
+          <td><?= htmlspecialchars($book['tacgia']) ?></td>
+          <td><?= $book['namxuatban'] ?></td>
+          <td><?= number_format($book['giabia']) ?> đ</td>
+          <td><?= $book['soluong'] ?></td>
+          <td>
+            <button class="btn-action btn-edit"
+              onclick="editBook(<?= $book['id'] ?>, 
+              '<?= addslashes($book['ten']) ?>', 
+              '<?= addslashes($book['tacgia']) ?>', 
+              <?= $book['namxuatban'] ?>, 
+              <?= $book['giabia'] ?>, 
+              <?= $book['soluong'] ?>)">
+              Cập Nhật
+            </button>
+            <a href="?delete_book=<?= $book['id'] ?>" 
+               onclick="return confirm('Xác nhận xóa sách này?')" 
+               class="btn-action btn-delete" 
+               style="text-decoration: none;">
+               Xóa
+            </a>
+          </td>
+        </tr>
+      <?php endwhile; ?>
+    <?php else: ?>
+      <tr><td colspan="7" style="text-align:center;">Không có dữ liệu để hiển thị</td></tr>
+    <?php endif; ?>
+  </table>
+</div>
 
       <!-- Tab Thêm Sách -->
       <div id="book-add" class="book-tab">
