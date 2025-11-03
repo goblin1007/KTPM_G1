@@ -148,6 +148,7 @@ if (isset($_POST['add_reader'])) {
     else {
         add_reader_to_db($conn, $id, $name, $birth_year, $phone);
         $message = "✅ Thêm mới thành công";
+        
     }
 }
 
@@ -557,31 +558,41 @@ if (isset($_POST['search_borrows'])) $active_form = 'borrow-book';
            value="<?= htmlspecialchars($search_id_books ?? '') ?>" min="1">
     <button name="search_books">🔍 Tìm kiếm</button>
   </form>
+    
 
-  <!-- Xử lý tìm kiếm sách -->
   <?php
-    $books = null;
-    $search_id_books = $_POST['search_id_books'] ?? '';
-
+    $books = null; 
+      // <!-- Xử lý tìm kiếm sách -->
     if (isset($_POST['search_books'])) {
-        $search_id_books = (int)$search_id_books;
+        $search_id_books = trim($_POST['search_id_books'] ?? '');
 
-        $stmt = $conn->prepare("SELECT * FROM sach WHERE id = ?");
-        $stmt->bind_param("i", $search_id_books);
-        $stmt->execute();
-        $books = $stmt->get_result();
-
-        if ($books->num_rows === 0) {
-            $message = "❌ ID sách không tồn tại.";
+        if ($search_id_books === '') {
+            $stmt = $conn->prepare("SELECT * FROM sach ORDER BY id ASC");
+            $stmt->execute();
+            $books = $stmt->get_result();
+            $stmt->close();
         } else {
-            $message = "✅ Tìm thấy {$books->num_rows} kết quả.";
-        }
+            $search_id_books = (int)$search_id_books;
+            if ($search_id_books < 1) {
+                $message = "❌ ID sách không hợp lệ.";
+            } else {
+                $stmt = $conn->prepare("SELECT * FROM sach WHERE id = ?");
+                $stmt->bind_param("i", $search_id_books);
+                $stmt->execute();
+                $books = $stmt->get_result();
 
-        $stmt->close();
-    } else {
-        $books = $conn->query("SELECT * FROM sach ORDER BY id ASC");
-    }
+                if ($books->num_rows === 0) {
+                    $message = "❌ ID sách không tồn tại.";
+                } else {
+                    $message = "";
+                }
+                $stmt->close();
+            }
+        }
+    } 
   ?>
+
+
 
   <?php if (!empty($message)): ?>
     <div class="message"><?= htmlspecialchars($message) ?></div>
